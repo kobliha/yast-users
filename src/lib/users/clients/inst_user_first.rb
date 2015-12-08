@@ -19,12 +19,6 @@
 # current contact information at www.novell.com.
 # ------------------------------------------------------------------------------
 
-# File:	clients/inst_user_first.ycp
-# Package:	Configuration of users and groups
-# Summary:	Dialog for creating the first user during installation
-# Authors:     Jiri Suchomel <jsuchome@suse.cz>
-#
-# $Id$
 require "yast"
 
 module Yast
@@ -45,8 +39,6 @@ module Yast
       Yast.import "Wizard"
 
       textdomain "users"
-
-      @text_mode = UI.TextMode
 
       # full info about imported users
       @imported_users = {}
@@ -112,7 +104,7 @@ module Yast
           @import_available ?
             HBox(
               HSpacing(3),
-              @text_mode ?
+              UI.TextMode ?
                 VBox(@import_checkbox, Left(@import_button)) :
                 HBox(@import_checkbox, @import_button)
             )
@@ -207,85 +199,9 @@ module Yast
       # this user gets root's mail
       @root_mail = !@username.empty? && UsersSimple.GetRootAlias == @username
 
-      @fields = VBox(
-        InputField(
-          Id(:full_name),
-          Opt(:notify, :hstretch),
-          # text entry
-          _("User's &Full Name"),
-          @full_name
-        ),
-        InputField(
-          Id(:username),
-          Opt(:notify, :hstretch),
-          # input field for login name
-          _("&Username"),
-          @username
-        ),
-        Password(
-          Id(:pw1),
-          Opt(:hstretch),
-          Label.Password,
-          @password == nil ? "" : @password
-        ),
-        Password(
-          Id(:pw2),
-          Opt(:hstretch),
-          Label.ConfirmPassword,
-          @password == nil ? "" : @password
-        )
-      )
 
-      @optionbox = VBox(
-        Left(
-          CheckBox(
-            Id(:root_pw),
-            # checkbox label
-            _("U&se this password for system administrator"),
-            @use_pw_for_root
-          )
-        ),
-        Left(
-          # checkbox label
-          CheckBox(Id(:root_mail), _("Receive S&ystem Mail"), @root_mail)
-        ),
-        # checkbox label
-        Left(CheckBox(Id(:autologin), _("&Automatic Login"), @autologin))
-      )
-      @contents = HBox(
-        HCenter(
-          HSquash(
-            VBox(
-              VStretch(),
-              @fields,
-              VSpacing(0.2),
-              @optionbox,
-              VSpacing(),
-              ReplacePoint(Id(:rp_status), get_status_term),
-              VStretch()
-            )
-          )
-        )
-      )
 
-      Wizard.CreateDialog if Mode.normal # for testing only
-      Wizard.SetTitleIcon("yast-users")
-      # dialog caption
-      Wizard.SetContents(
-        _("Create New User"),
-        @contents,
-        main_help,
-        GetInstArgs.enable_back,
-        GetInstArgs.enable_next || Mode.normal
-      )
-
-      widgets = [:full_name, :username, :pw1, :pw2, :root_pw, :root_mail, :autologin]
-
-      widgets.each do |w|
-        UI.ChangeWidget(Id(w), :Enabled, @to_import.empty?)
-      end
-
-      UI.SetFocus(Id(:full_name))
+      create_ui
 
       @login_modified = false
 
@@ -424,16 +340,105 @@ module Yast
       @ret
     end
 
+    def dialog_contents
+      first_user_entries = VBox(
+        InputField(
+          Id(:full_name),
+          Opt(:notify, :hstretch),
+          # text entry
+          _("User's &Full Name"),
+          @full_name
+        ),
+        InputField(
+          Id(:username),
+          Opt(:notify, :hstretch),
+          # input field for login name
+          _("&Username"),
+          @username
+        ),
+        Password(
+          Id(:pw1),
+          Opt(:hstretch),
+          Label.Password,
+          @password == nil ? "" : @password
+        ),
+        Password(
+          Id(:pw2),
+          Opt(:hstretch),
+          Label.ConfirmPassword,
+          @password == nil ? "" : @password
+        )
+      )
+
+      first_user_options = VBox(
+        Left(
+          CheckBox(
+            Id(:root_pw),
+            # checkbox label
+            _("U&se this password for system administrator"),
+            @use_pw_for_root
+          )
+        ),
+        Left(
+          # checkbox label
+          CheckBox(Id(:root_mail), _("Receive S&ystem Mail"), @root_mail)
+        ),
+        # checkbox label
+        Left(CheckBox(Id(:autologin), _("&Automatic Login"), @autologin))
+      )
+
+      HBox(
+        HCenter(
+          HSquash(
+            VBox(
+              VStretch(),
+              first_user_entries,
+              VSpacing(0.2),
+              first_user_options,
+              VSpacing(),
+              ReplacePoint(Id(:rp_status), get_status_term),
+              VStretch()
+            )
+          )
+        )
+      )
+    end
+
+    def create_ui
+      Wizard.CreateDialog if Mode.normal # for testing only
+      Wizard.SetTitleIcon("yast-users")
+      # dialog caption
+      Wizard.SetContents(
+        _("Create New User"),
+        dialog_contents,
+        main_help,
+        GetInstArgs.enable_back,
+        GetInstArgs.enable_next || Mode.normal
+      )
+
+      widgets = [:full_name, :username, :pw1, :pw2, :root_pw, :root_mail, :autologin]
+
+      widgets.each do |w|
+        UI.ChangeWidget(Id(w), :Enabled, @to_import.empty?)
+      end
+
+      UI.SetFocus(Id(:full_name))
+    end
+
+    # Returns proposed login created from provided user name
+    #
+    # @param [String] user_name
+    # @return [String] login
+    def login_from_user_name(user_name)
+      login = full_name.strip.split(" ", 2).first || ""
+      UsersSimple.Transliterate(login).delete("^" + UsersSimple.ValidLognameChars).downcase
+    end
+
     # Takes the first word from full name and proposes a login name which is then used
     # to relace the current login name in UI
     def propose_login
-      # get the first name
-      full_name = UI.QueryWidget(Id(:full_name), :Value)
-
-      login = full_name.strip.split(" ", 2).first || ""
-      login = UsersSimple.Transliterate(login).delete("^" + UsersSimple.ValidLognameChars).downcase
-
-      UI.ChangeWidget(Id(:username), :Value, login)
+      user_name = UI.QueryWidget(Id(:full_name), :Value)
+      UI.ChangeWidget(Id(:username), :Value, login_from_user_name(user_name))
     end
 
     # help text for main add user dialog
@@ -626,14 +631,14 @@ module Yast
         # summary label, %s is a single user name or multiple usernames (comma separated)
         imported = n_("User %s will be imported.", "Users %s will be imported.", @to_import.size) % @to_import.join(",")
 
-        if @text_mode
+        if UI.TextMode
           auth_line += "<br>" + imported
         else
           imported_term = Left(Label(imported))
         end
       end
 
-      status = @text_mode ?
+      status = UI.TextMode ?
         RichText(auth_line + "<br>" + details_line) :
         VBox(Left(Label(auth_line)), imported_term, Left(Label(details_line)))
 
@@ -642,7 +647,7 @@ module Yast
         Right(PushButton(Id(:change), _("&Change...")))
       )
 
-      @text_mode ?
+      UI.TextMode ?
         VBox(status, button) :
         # frame label
         Frame(
