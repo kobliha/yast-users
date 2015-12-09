@@ -47,12 +47,12 @@ module Yast
 
       # We do not need to create a wizard dialog in installation, but it's
       # helpful when testing all manually on a running system
-      Wizard.CreateDialog if separate_wizard_needed?
+      Wizard.CreateDialog if UsersUtils.separate_wizard_needed?
 
       create_ui
       ret = handle_ui
 
-      Wizard.CloseDialog if separate_wizard_needed?
+      Wizard.CloseDialog if UsersUtils.separate_wizard_needed?
 
       ret
     end
@@ -254,11 +254,6 @@ module Yast
       end
 
       return true
-    end
-
-    # Returns whether we need/ed to create new UI Wizard
-    def separate_wizard_needed?
-      Mode.normal
     end
 
     # Returns whether we need to run this dialog

@@ -63,6 +63,16 @@ module Yast
       # do not open package progress wizard window
       @progress_orig = Progress.set(false)
 
+      init_ui
+      create_ui
+      handle_ui
+
+      Wizard.CloseDialog if UsersUtils.separate_wizard_needed?
+      Progress.set(@progress_orig)
+      @ret
+    end
+
+    def init_ui
       @encryption_method = UsersSimple.EncryptionMethod
 
       # radiobutton label
@@ -198,11 +208,94 @@ module Yast
 
       # this user gets root's mail
       @root_mail = !@username.empty? && UsersSimple.GetRootAlias == @username
+    end
 
+    def dialog_contents
+      first_user_entries = VBox(
+        InputField(
+          Id(:full_name),
+          Opt(:notify, :hstretch),
+          # text entry
+          _("User's &Full Name"),
+          @full_name
+        ),
+        InputField(
+          Id(:username),
+          Opt(:notify, :hstretch),
+          # input field for login name
+          _("&Username"),
+          @username
+        ),
+        Password(
+          Id(:pw1),
+          Opt(:hstretch),
+          Label.Password,
+          @password == nil ? "" : @password
+        ),
+        Password(
+          Id(:pw2),
+          Opt(:hstretch),
+          Label.ConfirmPassword,
+          @password == nil ? "" : @password
+        )
+      )
 
+      first_user_options = VBox(
+        Left(
+          CheckBox(
+            Id(:root_pw),
+            # checkbox label
+            _("U&se this password for system administrator"),
+            @use_pw_for_root
+          )
+        ),
+        Left(
+          # checkbox label
+          CheckBox(Id(:root_mail), _("Receive S&ystem Mail"), @root_mail)
+        ),
+        # checkbox label
+        Left(CheckBox(Id(:autologin), _("&Automatic Login"), @autologin))
+      )
 
-      create_ui
+      HBox(
+        HCenter(
+          HSquash(
+            VBox(
+              VStretch(),
+              first_user_entries,
+              VSpacing(0.2),
+              first_user_options,
+              VSpacing(),
+              ReplacePoint(Id(:rp_status), get_status_term),
+              VStretch()
+            )
+          )
+        )
+      )
+    end
 
+    def create_ui
+      Wizard.CreateDialog if UsersUtils.separate_wizard_needed? # for testing only
+      Wizard.SetTitleIcon("yast-users")
+      # dialog caption
+      Wizard.SetContents(
+        _("Create New User"),
+        dialog_contents,
+        main_help,
+        GetInstArgs.enable_back,
+        GetInstArgs.enable_next || Mode.normal
+      )
+
+      widgets = [:full_name, :username, :pw1, :pw2, :root_pw, :root_mail, :autologin]
+
+      widgets.each do |w|
+        UI.ChangeWidget(Id(w), :Enabled, @to_import.empty?)
+      end
+
+      UI.SetFocus(Id(:full_name))
+    end
+
+    def handle_ui
       @login_modified = false
 
       while true
@@ -334,96 +427,8 @@ module Yast
         end
         UsersSimple.UnLoadCracklib if @use_pw_for_root
       end
-
-      Wizard.CloseDialog if Mode.normal
-      Progress.set(@progress_orig)
-      @ret
     end
 
-    def dialog_contents
-      first_user_entries = VBox(
-        InputField(
-          Id(:full_name),
-          Opt(:notify, :hstretch),
-          # text entry
-          _("User's &Full Name"),
-          @full_name
-        ),
-        InputField(
-          Id(:username),
-          Opt(:notify, :hstretch),
-          # input field for login name
-          _("&Username"),
-          @username
-        ),
-        Password(
-          Id(:pw1),
-          Opt(:hstretch),
-          Label.Password,
-          @password == nil ? "" : @password
-        ),
-        Password(
-          Id(:pw2),
-          Opt(:hstretch),
-          Label.ConfirmPassword,
-          @password == nil ? "" : @password
-        )
-      )
-
-      first_user_options = VBox(
-        Left(
-          CheckBox(
-            Id(:root_pw),
-            # checkbox label
-            _("U&se this password for system administrator"),
-            @use_pw_for_root
-          )
-        ),
-        Left(
-          # checkbox label
-          CheckBox(Id(:root_mail), _("Receive S&ystem Mail"), @root_mail)
-        ),
-        # checkbox label
-        Left(CheckBox(Id(:autologin), _("&Automatic Login"), @autologin))
-      )
-
-      HBox(
-        HCenter(
-          HSquash(
-            VBox(
-              VStretch(),
-              first_user_entries,
-              VSpacing(0.2),
-              first_user_options,
-              VSpacing(),
-              ReplacePoint(Id(:rp_status), get_status_term),
-              VStretch()
-            )
-          )
-        )
-      )
-    end
-
-    def create_ui
-      Wizard.CreateDialog if Mode.normal # for testing only
-      Wizard.SetTitleIcon("yast-users")
-      # dialog caption
-      Wizard.SetContents(
-        _("Create New User"),
-        dialog_contents,
-        main_help,
-        GetInstArgs.enable_back,
-        GetInstArgs.enable_next || Mode.normal
-      )
-
-      widgets = [:full_name, :username, :pw1, :pw2, :root_pw, :root_mail, :autologin]
-
-      widgets.each do |w|
-        UI.ChangeWidget(Id(w), :Enabled, @to_import.empty?)
-      end
-
-      UI.SetFocus(Id(:full_name))
-    end
 
     # Returns proposed login created from provided user name
     #

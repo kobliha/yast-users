@@ -31,6 +31,7 @@ module Yast
       textdomain "users"
 
       Yast.import "ProductFeatures"
+      Yast.import "Mode"
     end
 
     # Returns whether Users module should check CA constraints
@@ -44,6 +45,11 @@ module Yast
 
       @check_ca_constraints
     end
+  end
+
+  # Returns whether we need/ed to create new UI Wizard
+  def separate_wizard_needed?
+    Mode.normal
   end
 
   UsersUtils = UsersUtilsClass.new
